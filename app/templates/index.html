@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Safe route recommendation</title>
+        <style>
+            body {
+                background-color: lightblue;
+            }
+            #mapcontainer {
+                background-color: lightblue;
+                border-radius: 20px;
+                grid-row: 1 / 3;
+                grid-column: 1 / 2;
+            }
+            #settingcontainer {
+                border-radius: 20px;
+            }
+            #parent {
+                display: grid;
+                grid-template-columns: 7fr 3fr;
+                grid-template-rows: 4fr 1fr;
+            }
+            #water {
+                background-color: lightpink;
+                border-radius: 20px;
+                grid-row: 1 / 2;
+                grid-column: 2 / 3;
+                padding: 10px 10px 30px 10px;
+            }
+            #routing {
+                background-color: lightgreen;
+                border-radius: 20px;
+                grid-row: 2 / 3;
+                grid-column: 2 / 3;
+                padding: 10px 10px 30px 10px;
+            }
+            .settingfont {
+                font-family: 'Roboto Mono', monospace;
+                text-align: center;
+            }
+            .subtitle {
+                text-align: center;
+            }
+            form dl dt {
+                width: 120px;
+                float: left;
+                clear:both;
+            }
+        </style>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.0/dist/leaflet.css" />
+        <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300&display=swap" rel="stylesheet">
+        <script src="https://unpkg.com/leaflet@1.3.0/dist/leaflet.js"></script>
+        <script>
+            var map;
+            var xhr = new XMLHttpRequest();
+            var clicknum = 0;
+            var startPoint = {{start_point | tojson}};
+            var goalPoint = {{goal_point | tojson}};
+            var route = {{route | tojson}};
+            var nodes = {{nodes | tojson}};
+            var startNearest = {{start_nearest | tojson}};
+            var goalNearest = {{goal_nearest | tojson}};
+            var waterLevel = {{water_level | tojson}};
+            var sink = {{sink | tojson}};
+            function init() {
+                //地図の表示場所
+                map = L.map('mapcontainer');
+                //描画マップ
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                              attribution: '© <a href="http://osm.org/copyright">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
+                            }).addTo(map);
+                //視点設定
+                var mpoint = [35.664765, 139.401596];
+                map.setView(mpoint, 14);
+                //ノード
+                for(var i = 0; i < sink.length; i++){
+                    var point = [parseFloat(sink[i][0]), parseFloat(sink[i][1])];
+                    L.circleMarker(point, { radius: 10, color: "#0000ff", weight: 0}).addTo(map);
+                }
+                //始点・終点・経路
+                if(startPoint[0] != '' && startPoint[1] != '' && goalPoint[0] != '' && goalPoint[1] != ''){
+                    //始点の最近傍
+                    var snearest = [parseFloat(startNearest[0]), parseFloat(startNearest[1])];
+                    L.circleMarker(snearest, { radius: 5, color: "#ff0000", weight: 2}).addTo(map);
+                    //終点の最近傍
+                    var gnearest = [parseFloat(goalNearest[0]), parseFloat(goalNearest[1])];
+                    L.circleMarker(gnearest, { radius: 5, color: "#ff0000", weight: 2}).addTo(map);
+                    //始点（クリック点）
+                    var spoint = [parseFloat(startPoint[0]), parseFloat(startPoint[1])];
+                    L.circleMarker(spoint, { radius: 5, color: "#00ff00", weight: 2}).addTo(map);
+                    //終点（クリック点）
+                    var gpoint = [parseFloat(goalPoint[0]), parseFloat(goalPoint[1])];
+                    L.circleMarker(gpoint, { radius: 5, color: "#00ff00", weight: 2}).addTo(map);
+                    //経路
+                    for(var i = 0; i < route.length - 1; i++){
+                        var line = [[parseFloat(route[i][0]), parseFloat(route[i][1])], [parseFloat(route[i+1][0]), parseFloat(route[i+1][1])]];
+                        L.polyline(line, {color: "#ff0000", "weight": 5,}).addTo(map);
+                    }
+                }
+                //地図のclickイベントでonMapClick関数を呼び出し
+                map.on('click', onMapClick);
+            }
+
+            //クリックイベント
+            function onMapClick(e) {
+                if(clicknum == 0){
+                    L.circleMarker(e.latlng, { radius: 5, color: "#ff0000", weight: 2}).addTo(map);
+                    //inputボックスに書き込み
+                    document.getElementById("StartLat").value = e.latlng.lat;
+                    document.getElementById("StartLng").value = e.latlng.lng;
+                }else if(clicknum == 1){
+                    L.circleMarker(e.latlng, { radius: 5, color: "#ff0000", weight: 2}).addTo(map);
+                    //inputボックスに書き込み
+                    document.getElementById("GoalLat").value = e.latlng.lat;
+                    document.getElementById("GoalLng").value = e.latlng.lng;
+                }
+                clicknum++;
+            }
+
+        </script>
+    </head>
+
+    <body onload="init()">
+        <h1 style="text-align:center">浸水したエリアを避ける経路推薦アプリ</h1>
+        <div id="parent">
+            <div id="mapcontainer"></div>
+            <form action="index.html" method="post" style="float:right">
+                <div class="settingfont" id="water">
+                    <h3 class="subtitle">water level</h3>
+                    <input type="text" name="WaterLevel" value="{{water_level}}" id="WaterLevel" size=3 style="text-align:right">
+                    <input type="submit" name="type" value="View" id="ViewButton">
+                </div>
+                <div class="settingfont" id="routing">
+                    <h3 class="subtitle">start point</h3>
+                    <dl>
+                        <dt>latitude</dt>
+                        <dd><input type="text" name="StartLat" value="{{start_point[0]}}" id="StartLat"></dd>
+                        <dt>longitude</dt>
+                        <dd><input type="text" name="StartLng" value="{{start_point[1]}}" id="StartLng"></dd>
+                    </dl>
+                    <h3 class="subtitle">goal point</h3>
+                    <dl>
+                        <dt>latitude</dt>
+                        <dd><input type="text" name="GoalLat" value="{{goal_point[0]}}" id="GoalLat"></dd>
+                        <dt>longitude</dt>
+                        <dd><input type="text" name="GoalLng" value="{{goal_point[1]}}" id="GoalLng"></dd>
+                    </dl>
+                    <input type="submit" name="type" value="Excute" id="RunButton">
+                    <input type="submit" name="type" value="Reset" id="ResetButton"><br>
+                </div>
+            </form>
+        </div>
+        <div id='child'>
+            浸水したと思われる経路を避けて経路推薦する．water level に水位を記入．Viewで浸水していると思われる道路のノードは薄い青丸が発生する．
+            1度目のクリックで出発地点，2度目のクリックで目的地点が決まり，経路を推薦する．
+            計算量を考えなかったため，時間がかかる．
+        </div>
+    </body>
+</html>
